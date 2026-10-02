@@ -33,7 +33,7 @@
 import os
 import shutil
 import subprocess
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from PySide6.QtWidgets import QMessageBox, QWidget
 from PySide6.QtCore import QFile
@@ -119,6 +119,21 @@ def find_inhibit() -> Optional[str]:
             if _inhibit_cmd is None:
                 print("systemd-inhibit is not usable. Mounts will not inhibit sleep.")
     return _inhibit_cmd
+
+
+def list_remotes() -> List[str]:
+    """Names of the remotes in the user's rclone config (without the trailing ':')."""
+    rclone = find_rclone()
+    if rclone is None:
+        return []
+    try:
+        res = subprocess.run([rclone, "listremotes"], capture_output=True, text=True,
+                             timeout=10, env=host_env())
+    except (OSError, subprocess.SubprocessError):
+        return []
+    if res.returncode != 0:
+        return []
+    return [line.strip().rstrip(":") for line in res.stdout.splitlines() if line.strip() != ""]
 
 
 def rclone_version() -> str:

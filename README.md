@@ -42,11 +42,27 @@ The host needs `rclone` and `fuse3` (`fusermount3`) installed. rclone output for
         "0": {
             "remote_name": "OneDrive",
             "mount_point": "~/OneDrive",
-            "mount_args": "--vfs-cache-mode writes"
+            "mount_preset": "general",
+            "mount_args": "--vfs-cache-mode full\n--vfs-cache-max-size 10G\n--vfs-cache-max-age 24h\n--vfs-cache-min-free-space 5G"
         }
     }
 }
 ```
+
+The remote can be picked from the remotes in your rclone config (`rclone listremotes`) or typed in.
+
+### Mount option presets
+
+| Preset | Use it for | Main options |
+|---|---|---|
+| General use (recommended) | Everyday files; any app can open, edit and save in place | `--vfs-cache-mode full`, cache up to 10G / 24h, keep 5G disk free |
+| Media streaming | Video and music players, Plex / Jellyfin | `full` cache up to 50G / 1 week, `--vfs-read-ahead 512M`, `--buffer-size 64M`, `--dir-cache-time 1h` |
+| Light (low disk use) | Small disks; files are read straight from the remote | `--vfs-cache-mode writes`, cache up to 1G |
+| Read-only browsing | Backups, archives, photo libraries | `--read-only`, `full` cache up to 5G |
+| S3 / object storage | S3, Swift, B2 and similar | `--vfs-fast-fingerprint --no-modtime --vfs-read-chunk-size 4M --vfs-read-chunk-streams 16` |
+| Custom | Anything else | Your own flags |
+
+Choosing "Custom" makes the arguments editable, starting from the previously selected preset, or from your last custom arguments if you have saved some. Presets are applied from their current definition when mounting, so improvements in new versions apply to existing configurations. See the [rclone mount documentation](https://rclone.org/commands/rclone_mount/#vfs-file-caching) for what each option does.
 
 Note that remotes must be setup in rclone. The GUI config just determines what pre-setup remote name to mount and how / where.
 

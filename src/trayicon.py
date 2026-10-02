@@ -16,6 +16,7 @@ from PySide6.QtGui import QIcon, QCursor, QAction
 from PySide6.QtCore import QStandardPaths, QTimer
 
 from configwindow import ConfigWindow
+import presets
 from common import APP_TITLE, warn, ask, host_env, find_tool, find_rclone, find_inhibit
 
 
@@ -296,7 +297,11 @@ class TrayIcon(QSystemTrayIcon):
             return
 
         try:
-            user_args = shlex.split(str(self.data["items"][str(idx)]["mount_args"]))
+            item = self.data["items"][str(idx)]
+            # Presets use their current definition so tuning a preset applies to existing configs
+            preset = presets.get_preset(item.get("mount_preset", presets.CUSTOM))
+            mount_args = preset.args if preset is not None else item.get("mount_args", "")
+            user_args = shlex.split(str(mount_args))
         except ValueError as e:
             warn("Error occurred mounting the drive", "Mount arguments could not be parsed: {}".format(e))
             return
