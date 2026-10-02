@@ -30,39 +30,39 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
+import shutil
 import subprocess
 import os
+import sys
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
-uic = ""
-rcc = ""
 
 
-
-# Find UIC and RCC
-if uic == "" and rcc == "":
+def find_tool(name):
+    """Return the command for a Qt tool (uic / rcc) that generates Python code."""
+    # pip installs pyside6-uic / pyside6-rcc wrappers
+    wrapper = shutil.which("pyside6-" + name)
+    if wrapper is not None:
+        return [wrapper]
+    # Distro packages (e.g. Fedora python3-pyside6) only ship the raw Qt tools
     try:
         import PySide6
-        uic = "pyside6-uic"
-        rcc = "pyside6-rcc"
     except ImportError:
-        pass
-
-if uic == "" and rcc == "":
-    try:
-        import PySide2
-        uic = "pyside2-uic"
-        rcc = "pyside2-rcc"
-    except ImportError:
-        pass
+        return None
+    tool = os.path.join(os.path.dirname(PySide6.__file__), "Qt", "libexec", name)
+    if os.access(tool, os.X_OK):
+        return [tool, "-g", "python"]
+    return None
 
 
-if uic == "" and rcc == "":
-    print("No Pyside UIC and RCC found. Exiting.")
-    exit(1)
+uic = find_tool("uic")
+rcc = find_tool("rcc")
+if uic is None or rcc is None:
+    print("No PySide6 UIC and RCC found. Exiting.")
+    sys.exit(1)
 
 # Remove old generated files
-for dirpath, dirnames, filenames in os.walk(os.path.join(script_dir, "app")):
+for dirpath, dirnames, filenames in os.walk(os.path.join(script_dir, "src")):
     for src_file in filenames:
         if src_file.endswith('.py') and (src_file.startswith("ui_") or src_file.endswith("_rc.py")):
             print("[Deleting]: {0}".format(src_file))
@@ -76,7 +76,7 @@ for dirpath, dirnames, filenames in os.walk(os.path.join(script_dir, "ui")):
             src_path = os.path.join(dirpath, src_file)
             dest_path = os.path.join(script_dir, "src", dest_file)
             print("[Compiling]: {0} --> {1}".format(src_file, dest_file))
-            subprocess.run([uic, src_path, "-o", dest_path])
+            subprocess.run(uic + [src_path, "-o", dest_path], check=True)
 
 # Compile QRC files
 for dirpath, dirnames, filenames in os.walk(os.path.join(script_dir, "res")):
@@ -86,4 +86,4 @@ for dirpath, dirnames, filenames in os.walk(os.path.join(script_dir, "res")):
             src_path = os.path.join(dirpath, src_file)
             dest_path = os.path.join(script_dir, "src", dest_file)
             print("[Compiling]: {0} --> {1}".format(src_file, dest_file))
-            subprocess.run([rcc, src_path, "-o", dest_path])
+            subprocess.run(rcc + [src_path, "-o", dest_path], check=True)

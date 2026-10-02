@@ -31,18 +31,14 @@
 
 import traceback
 
-try:
-    from PySide6.QtWidgets import QMainWindow, QWidget, QMessageBox
-    from PySide6.QtCore import Signal, QStandardPaths, QFile
-    from PySide6.QtGui import QShowEvent, QCloseEvent
-except:
-    from PySide2.QtWidgets import QMainWindow, QWidget, QMessageBox
-    from PySide2.QtCore import Signal, QStandardPaths, QFile
-    from PySide2.QtGui import QShowEvent, QCloseEvent
+from PySide6.QtWidgets import QMainWindow, QWidget
+from PySide6.QtCore import Signal, QStandardPaths
+from PySide6.QtGui import QCloseEvent
 
 from typing import Optional
 from ui_configwindow import Ui_ConfigWindow
 from ui_config_list_item import Ui_ConfigListItem
+from common import APP_TITLE, warn, app_version, rclone_version
 import json
 import os
 
@@ -69,12 +65,17 @@ class ConfigWindow(QMainWindow):
         self.ui.setupUi(self)
         self.list_items = []
         self.ui.btn_add.clicked.connect(self.add_config)
-        self.cfg_file = QStandardPaths.writableLocation(QStandardPaths.AppDataLocation) + "/config.json"
+        self.cfg_file = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation) + "/config.json"
+        self.last_data = {"count": 0, "items": {}}
 
-        version_file = QFile(":/version.txt")
-        if version_file.open(QFile.ReadOnly):
-            version_txt = bytes(version_file.readLine()).strip().decode()
-            self.setWindowTitle("{0} - v{1}".format(self.windowTitle(), version_txt))
+        title = APP_TITLE
+        version_txt = app_version()
+        if version_txt != "":
+            title += " - v{0}".format(version_txt)
+        rclone_txt = rclone_version()
+        if rclone_txt != "":
+            title += " (rclone {0})".format(rclone_txt)
+        self.setWindowTitle(title)
 
     def add_config(self):
         item = ConfigListItem()
@@ -83,6 +84,7 @@ class ConfigWindow(QMainWindow):
         item.removed.connect(self.remove_config)
         self.ui.sa_main.layout().insertWidget(self.ui.sa_main.layout().count() - 1, item)
         self.list_items.append(item)
+        return item
 
     def remove_config(self, which: ConfigListItem):
         self.ui.sa_main.layout().removeWidget(which)
@@ -92,43 +94,56 @@ class ConfigWindow(QMainWindow):
     def clear_configs(self):
         for cfg_list_item in self.list_items:
             self.ui.sa_main.layout().removeWidget(cfg_list_item)
+            cfg_list_item.deleteLater()
         self.list_items.clear()
 
     def show(self, data: dict):
         self.clear_configs()
-        for i in range(data["count"]):
-            self.add_config()
-            obj: ConfigListItem = self.ui.sa_main.layout().itemAt(i).widget()
-            obj.ui.txt_remote.setText(data["items"][str(i)]["remote_name"])
-            obj.ui.txt_mountpoint.setText(data["items"][str(i)]["mount_point"])
-            obj.ui.txt_args.setPlainText(data["items"][str(i)]["mount_args"])
+        if "count" in data:
+            self.last_data = data
+        for i in range(data.get("count", 0)):
+            item = self.add_config()
+            item.ui.txt_remote.setText(data["items"][str(i)]["remote_name"])
+            item.ui.txt_mountpoint.setText(data["items"][str(i)]["mount_point"])
+            item.ui.txt_args.setPlainText(data["items"][str(i)]["mount_args"])
         return super().show()
-    
+
+    def collect_data(self) -> dict:
+        data = {}
+        data["count"] = len(self.list_items)
+        data["items"] = {}
+        for i, item in enumerate(self.list_items):
+            data["items"][str(i)] = {}
+            data["items"][str(i)]["remote_name"] = item.ui.txt_remote.text().strip()
+            data["items"][str(i)]["mount_point"] = item.ui.txt_mountpoint.text().strip()
+            data["items"][str(i)]["mount_args"] = item.ui.txt_args.toPlainText()
+        return data
+
+    def validate(self, data: dict) -> str:
+        names = [data["items"][str(i)]["remote_name"] for i in range(data["count"])]
+        if "" in names:
+            return "Every configuration needs a remote name."
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        if len(dupes) > 0:
+            return "Remote names must be unique. Duplicated: {}".format(", ".join(dupes))
+        return ""
+
     def closeEvent(self, event: QCloseEvent):
+        data = self.collect_data()
+        problem = self.validate(data)
+        if problem != "":
+            warn("Configuration not saved.", problem, self)
+            event.ignore()
+            return
         try:
-            if not os.path.exists(os.path.dirname(self.cfg_file)):
-                os.makedirs(os.path.dirname(self.cfg_file))
+            os.makedirs(os.path.dirname(self.cfg_file), exist_ok=True)
             with open(self.cfg_file, "w") as f:
-                data = {}
-                data["count"] = self.ui.sa_main.layout().count() - 1
-                data["items"] = {}
-                for i in range(data["count"]):
-                    data["items"][str(i)] = {}
-                    obj: ConfigListItem = self.ui.sa_main.layout().itemAt(i).widget()
-                    data["items"][str(i)]["remote_name"] = obj.ui.txt_remote.text()
-                    data["items"][str(i)]["mount_point"] = obj.ui.txt_mountpoint.text()
-                    data["items"][str(i)]["mount_args"] = obj.ui.txt_args.toPlainText()
-                json.dump(data, f)
-                self.closed.emit(data)
+                json.dump(data, f, indent=4)
+            self.last_data = data
+            self.closed.emit(data)
         except Exception as e:
             traceback.print_exc()
-            dialog = QMessageBox(self)
-            dialog.setWindowTitle("RcloneDriveManager")
-            dialog.setText("Error occurred saving configuration file.")
-            dialog.setDetailedText("Exception '{}' occurred.".format(type(e).__name__))
-            dialog.setIcon(QMessageBox.Warning)
-            dialog.setStandardButtons(QMessageBox.Ok)
-            dialog.setDefaultButton(QMessageBox.Ok)
-            dialog.exec_()
-            self.closed.emit({})
+            warn("Error occurred saving configuration file.",
+                 "{} occurred with message {}.".format(type(e).__name__, str(e)), self)
+            self.closed.emit(self.last_data)
         return super().closeEvent(event)

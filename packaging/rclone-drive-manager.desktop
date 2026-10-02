@@ -8,5 +8,5 @@ Icon=/usr/lib/rclone-drive-manager/icon.png
 Exec=/usr/lib/rclone-drive-manager/start.sh
 StartupWMClass=RcloneDriveManager
 Actions=
-Categories=Development;
+Categories=Utility;
 StartupNotify=false

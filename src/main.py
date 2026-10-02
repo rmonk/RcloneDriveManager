@@ -30,22 +30,14 @@
 
 import sys
 
-try:
-    from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QMenu
-    from PySide6.QtGui import QIcon, QAction
-    from PySide6.QtCore import Qt
-except:
-    from PySide2.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
-    from PySide2.QtGui import QIcon
-    from PySide2.QtCore import Qt
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import Qt
 
 from configwindow import ConfigWindow
 from trayicon import TrayIcon
 
 
 if __name__ == "__main__":
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
     QApplication.setHighDpiScaleFactorRoundingPolicy(Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
@@ -55,4 +47,4 @@ if __name__ == "__main__":
     tray = TrayIcon(win)
     tray.show()
 
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

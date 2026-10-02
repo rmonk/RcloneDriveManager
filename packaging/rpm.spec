@@ -3,7 +3,7 @@ Version:    1.0.5
 Release:    1
 Summary:    Tray icon to mount / unmount rclone remotes.
 License:    BSD-3-Clause
-Requires:   rclone, python3, python3-pyside6
+Requires:   rclone, fuse3, python3, python3-pyside6
 
 %description
 Tray icon to mount / unmount rclone remotes.
