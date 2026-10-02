@@ -65,6 +65,8 @@ echo "Staging recipe..."
 cp "$DIR/requirements.txt" "$DIR/entrypoint.sh" "$DIR/rclone-drive-manager.desktop" \
     "$DIR/rclone-drive-manager.appdata.xml" "$RECIPE/"
 cp "$ROOT/res/icon.png" "$RECIPE/rclone-drive-manager.png"
+# Version shown by AppImage managers (e.g. Gear Lever)
+echo "X-AppImage-Version=$VERSION" >> "$RECIPE/rclone-drive-manager.desktop"
 cp "$ROOT"/src/*.py "$EXTRA/opt/rclone-drive-manager/"
 cp "$ROOT/LICENSE" "$EXTRA/usr/share/doc/rclone-drive-manager/copyright"
 
