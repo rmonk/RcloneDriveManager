@@ -32,15 +32,14 @@
 import traceback
 
 from PySide6.QtWidgets import QMainWindow, QWidget, QFileDialog
-from PySide6.QtCore import Signal, QStandardPaths
+from PySide6.QtCore import Signal
 from PySide6.QtGui import QCloseEvent
 
 from typing import List, Optional
 from ui_configwindow import Ui_ConfigWindow
 from ui_config_list_item import Ui_ConfigListItem
-from common import APP_TITLE, warn, app_version, rclone_version, list_remotes
+from common import APP_TITLE, warn, app_version, rclone_version, list_remotes, save_config, config_path
 import presets
-import json
 import os
 
 
@@ -165,7 +164,7 @@ class ConfigWindow(QMainWindow):
         self.list_items = []
         self.remotes: List[str] = []
         self.ui.btn_add.clicked.connect(self.add_config)
-        self.cfg_file = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation) + "/config.json"
+        self.cfg_file = config_path()
         self.last_data = {"count": 0, "items": {}}
 
         title = APP_TITLE
@@ -233,9 +232,7 @@ class ConfigWindow(QMainWindow):
             event.ignore()
             return
         try:
-            os.makedirs(os.path.dirname(self.cfg_file), exist_ok=True)
-            with open(self.cfg_file, "w") as f:
-                json.dump(data, f, indent=4)
+            save_config(self.cfg_file, data)
             self.last_data = data
             self.closed.emit(data)
         except Exception as e:

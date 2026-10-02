@@ -6,12 +6,13 @@ PYTHON        := $(abspath $(VENV))/bin/python
 VERSION       := $(shell tr -d '[:space:]' < res/version.txt)
 APPIMAGE      := dist/RcloneDriveManager-$(VERSION)-x86_64.AppImage
 
-# App data (config.json, logs) used by `make run` / `make run-appimage`. Kept separate
-# from an installed copy's ~/.local/share/rclone-drive-manager so testing can't overwrite
-# your real configuration. Your rclone config (remotes) is still used.
+# App data (config.json, logs) and the "Start on login" entry used by `make run` /
+# `make run-appimage`. Kept separate from an installed copy (~/.local/share and
+# ~/.config/autostart) so testing can't overwrite its configuration or login item.
+# Your rclone config (remotes) and desktop theme are still used.
 # Use `make run DATA_DIR=` to run against the real app data instead.
 DATA_DIR      ?= $(CURDIR)/.dev-data
-RUN_ENV       := $(if $(DATA_DIR),XDG_DATA_HOME="$(DATA_DIR)")
+RUN_ENV       := $(if $(DATA_DIR),RCLONE_DRIVE_MANAGER_HOME="$(DATA_DIR)")
 
 SOURCES       := $(wildcard src/*.py ui/*.ui res/*)
 
@@ -50,7 +51,7 @@ run: compile
 check: compile
 	$(PYTHON) -m py_compile src/*.py
 	@echo "Starting app offscreen for 5 seconds..."
-	@cd src && XDG_DATA_HOME="$(CURDIR)/build/check-data" QT_QPA_PLATFORM=offscreen \
+	@cd src && RCLONE_DRIVE_MANAGER_HOME="$(CURDIR)/build/check-data" QT_QPA_PLATFORM=offscreen \
 		timeout 5 $(PYTHON) -W error::DeprecationWarning main.py; \
 		status=$$?; if [ $$status -eq 124 ]; then echo "check passed"; \
 		else echo "app exited early with status $$status"; exit 1; fi

@@ -5,7 +5,6 @@ import shlex
 import subprocess
 import os
 import sys
-import json
 import time
 import traceback
 from collections import deque
@@ -13,17 +12,16 @@ from typing import Optional, List, Dict, Tuple
 
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QWidget, QApplication
 from PySide6.QtGui import QIcon, QCursor, QAction
-from PySide6.QtCore import QStandardPaths, QTimer
+from PySide6.QtCore import QTimer
 
 from configwindow import ConfigWindow
 import presets
-from common import APP_TITLE, warn, ask, host_env, find_tool, find_rclone, find_inhibit
+from common import APP_TITLE, warn, ask, host_env, find_tool, find_rclone, find_inhibit, load_config, \
+    data_dir, config_path, autostart_path
 
 
 # How long to wait for a new mount to appear before assuming rclone is still starting
 MOUNT_WAIT_SECS = 5.0
-
-AUTOSTART_FILE = "rclone-drive-manager.desktop"
 
 
 def unescape_mountinfo(path: str) -> str:
@@ -43,6 +41,15 @@ def is_mounted(path: str) -> bool:
     except OSError:
         traceback.print_exc()
     return False
+
+
+def is_stale_mount(path: str) -> bool:
+    """A FUSE mount whose daemon has died fails with ENOTCONN."""
+    try:
+        os.stat(path)
+        return False
+    except OSError as e:
+        return e.errno == errno.ENOTCONN
 
 
 def fuse_unmount(mountpoint: str, lazy: bool = False) -> bool:
@@ -77,12 +84,9 @@ class TrayIcon(QSystemTrayIcon):
     def __init__(self, config_win: ConfigWindow, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
 
-        data_dir = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
-        self.cfg_file = data_dir + "/config.json"
-        self.log_dir = data_dir + "/logs"
-        self.autostart_file = os.path.join(
-            QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericConfigLocation),
-            "autostart", AUTOSTART_FILE)
+        self.cfg_file = config_path()
+        self.log_dir = os.path.join(data_dir(), "logs")
+        self.autostart_file = autostart_path()
 
         self.config_win = config_win
         self.menu = QMenu()
@@ -100,15 +104,10 @@ class TrayIcon(QSystemTrayIcon):
 
         self.activated.connect(self.showMenuOnTrigger)
 
-        if os.path.exists(self.cfg_file):
-            try:
-                with open(self.cfg_file, "r") as f:
-                    data = json.load(f)
-                    self.update_menu(data)
-            except Exception as e:
-                traceback.print_exc()
-                warn("Error occurred loading configuration file.",
-                     "{} occurred with message {}.".format(type(e).__name__, str(e)))
+        data, problem = load_config(self.cfg_file)
+        if problem != "":
+            warn("The configuration file could not be read.", problem)
+        self.update_menu(data)
 
         # Keep autostart entry pointing at the current executable (AppImages move)
         if os.path.exists(self.autostart_file):
@@ -274,7 +273,13 @@ class TrayIcon(QSystemTrayIcon):
         mountpoint = os.path.expandvars(os.path.expanduser(mountpoint))
 
         if is_mounted(mountpoint):
-            if not ask("{} is already mounted, possibly left over from a crash. Unmount it and continue?".format(mountpoint)):
+            if not is_stale_mount(mountpoint):
+                # A working mount from another program (e.g. rclone started by hand). Never unmount it.
+                warn("Error occurred mounting the drive",
+                     "{} is already mounted by another program. Unmount it there first, "
+                     "or choose a different mount point.".format(mountpoint))
+                return
+            if not ask("{} is a broken mount left over from a crash. Clean it up and continue?".format(mountpoint)):
                 return
             if not fuse_unmount(mountpoint, lazy=True):
                 warn("Error occurred mounting the drive", "Failed to unmount {}.".format(mountpoint))

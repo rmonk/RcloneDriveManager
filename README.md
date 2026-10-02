@@ -16,7 +16,7 @@ make run-appimage  # build if anything changed, then run the AppImage
 make help          # all targets
 ```
 
-`make run` and `make run-appimage` keep the app's data (`config.json`, logs) in `.dev-data/` so testing doesn't touch the configuration of an installed copy; your rclone remotes are still used. Pass `DATA_DIR=` to use the real app data. Quit an installed copy first if you test mounts, so two instances don't mount the same drive.
+`make run` and `make run-appimage` keep the app's data (`config.json`, logs) and its "Start on login" entry in `.dev-data/` (via `RCLONE_DRIVE_MANAGER_HOME`), so testing doesn't touch an installed copy's configuration or login items; your rclone remotes are still used. Pass `DATA_DIR=` to use the real app data. Quit an installed copy first if you test mounts, so two instances don't mount the same drive.
 
 Without make:
 

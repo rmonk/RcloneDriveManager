@@ -28,13 +28,15 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import sys
 
 from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QLockFile
 
 from configwindow import ConfigWindow
 from trayicon import TrayIcon
+from common import warn, data_dir
 
 
 if __name__ == "__main__":
@@ -42,6 +44,14 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("rclone-drive-manager")
+
+    # Two instances would both mount drives and overwrite each other's configuration
+    os.makedirs(data_dir(), exist_ok=True)
+    lock = QLockFile(os.path.join(data_dir(), "instance.lock"))
+    if not lock.tryLock(100):
+        warn("RcloneDriveManager is already running.",
+             "Use the existing tray icon, or quit it before starting another copy.")
+        sys.exit(1)
 
     win = ConfigWindow()
     tray = TrayIcon(win)

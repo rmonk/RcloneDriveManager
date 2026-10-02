@@ -30,13 +30,17 @@
 
 # Helpers shared by the tray icon and config window
 
+import json
 import os
 import shutil
 import subprocess
-from typing import Dict, List, Optional
+import sys
+import tempfile
+import time
+from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtWidgets import QMessageBox, QWidget
-from PySide6.QtCore import QFile
+from PySide6.QtCore import QFile, QStandardPaths
 
 APP_TITLE = "RcloneDriveManager"
 
@@ -48,12 +52,18 @@ _BUNDLE_ENV_VARS = [
     "QML2_IMPORT_PATH", "SSL_CERT_FILE", "TCL_LIBRARY", "TK_LIBRARY",
 ]
 
+# Relocates app data and the autostart entry (used by `make run` so test runs can't
+# touch an installed copy's configuration or login items)
+HOME_OVERRIDE_VAR = "RCLONE_DRIVE_MANAGER_HOME"
+
 _rclone_version: Optional[str] = None
 _inhibit_cmd: Optional[str] = None
 _inhibit_checked = False
 
 
 def warn(text: str, detail: str = "", parent: Optional[QWidget] = None):
+    # Also log, so problems shown in dialogs end up in the journal
+    print("{}: {}{}".format(APP_TITLE, text, " " + detail if detail != "" else ""), file=sys.stderr, flush=True)
     dialog = QMessageBox(parent)
     dialog.setWindowTitle(APP_TITLE)
     dialog.setText(text)
@@ -73,6 +83,73 @@ def ask(text: str, parent: Optional[QWidget] = None) -> bool:
     dialog.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
     dialog.setDefaultButton(QMessageBox.StandardButton.No)
     return dialog.exec() == QMessageBox.StandardButton.Yes
+
+
+def data_dir() -> str:
+    override = os.environ.get(HOME_OVERRIDE_VAR, "")
+    if override != "":
+        return os.path.join(override, "rclone-drive-manager")
+    return QStandardPaths.writableLocation(QStandardPaths.StandardLocation.AppDataLocation)
+
+
+def config_path() -> str:
+    return os.path.join(data_dir(), "config.json")
+
+
+def autostart_path() -> str:
+    override = os.environ.get(HOME_OVERRIDE_VAR, "")
+    base = os.path.join(override, "autostart") if override != "" else os.path.join(
+        QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericConfigLocation), "autostart")
+    return os.path.join(base, "rclone-drive-manager.desktop")
+
+
+def empty_config() -> dict:
+    return {"count": 0, "items": {}}
+
+
+def save_config(path: str, data: dict):
+    """Write the config atomically so a crash or kill mid-save can't leave a truncated file."""
+    directory = os.path.dirname(path)
+    os.makedirs(directory, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(prefix=".config-", suffix=".json", dir=directory)
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp_path, path)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def load_config(path: str) -> Tuple[dict, str]:
+    """Load the config. Returns (data, problem); problem is "" when the file was fine.
+    A missing or empty file is an empty config. An unreadable file is moved aside so it
+    can be recovered and is not overwritten by the next save."""
+    if not os.path.exists(path):
+        return empty_config(), ""
+    try:
+        with open(path, "r") as f:
+            text = f.read()
+        if text.strip() == "":
+            return empty_config(), ""
+        data = json.loads(text)
+        if not isinstance(data, dict) or not isinstance(data.get("count"), int) \
+                or not isinstance(data.get("items"), dict):
+            raise ValueError("Unexpected configuration format")
+        return data, ""
+    except (OSError, ValueError) as e:
+        backup = "{}.corrupt-{}".format(path, time.strftime("%Y%m%d-%H%M%S"))
+        try:
+            os.replace(path, backup)
+            moved = "It was moved to {} and an empty configuration was started.".format(backup)
+        except OSError:
+            moved = "It could not be moved aside."
+        return empty_config(), "{}: {}\n\n{}".format(type(e).__name__, e, moved)
 
 
 def host_env() -> Dict[str, str]:
