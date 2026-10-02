@@ -6,9 +6,23 @@ Designed for / tested on / probably only works on Linux systems.
 
 ## Development Setup & Running
 
+The Makefile sets up a virtualenv (`.venv`, with PySide6 and python-appimage) on first use:
+
 ```sh
-python3 -m venv env
-source env/bin/activate
+make run           # run from source
+make check         # byte-compile + offscreen startup smoke test
+make appimage      # build dist/RcloneDriveManager-<version>-x86_64.AppImage
+make run-appimage  # build if anything changed, then run the AppImage
+make help          # all targets
+```
+
+`make run` and `make run-appimage` keep the app's data (`config.json`, logs) in `.dev-data/` so testing doesn't touch the configuration of an installed copy; your rclone remotes are still used. Pass `DATA_DIR=` to use the real app data. Quit an installed copy first if you test mounts, so two instances don't mount the same drive.
+
+Without make:
+
+```sh
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install -U PySide6
 python compile.py
 python src/main.py

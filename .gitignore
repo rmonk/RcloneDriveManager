@@ -142,3 +142,6 @@ cython_debug/
 # IDE Projects
 .vscode/
 .idea/
+
+# Local test data (make run)
+.dev-data/
