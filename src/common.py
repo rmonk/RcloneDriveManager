@@ -49,6 +49,8 @@ _BUNDLE_ENV_VARS = [
 ]
 
 _rclone_version: Optional[str] = None
+_inhibit_cmd: Optional[str] = None
+_inhibit_checked = False
 
 
 def warn(text: str, detail: str = "", parent: Optional[QWidget] = None):
@@ -99,6 +101,24 @@ def find_rclone() -> Optional[str]:
         if os.access(bundled, os.X_OK):
             return bundled
     return find_tool("rclone")
+
+
+def find_inhibit() -> Optional[str]:
+    """systemd-inhibit if it is installed and logind is reachable (it isn't in containers / WSL)."""
+    global _inhibit_cmd, _inhibit_checked
+    if not _inhibit_checked:
+        _inhibit_checked = True
+        tool = find_tool("systemd-inhibit")
+        if tool is not None:
+            try:
+                res = subprocess.run([tool, "--list"], capture_output=True, timeout=5, env=host_env())
+                if res.returncode == 0:
+                    _inhibit_cmd = tool
+            except (OSError, subprocess.SubprocessError):
+                pass
+            if _inhibit_cmd is None:
+                print("systemd-inhibit is not usable. Mounts will not inhibit sleep.")
+    return _inhibit_cmd
 
 
 def rclone_version() -> str:

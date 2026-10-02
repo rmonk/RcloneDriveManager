@@ -34,6 +34,7 @@
 # Usage: prune.py AppDir
 
 import glob
+import re
 import os
 import shutil
 import subprocess
@@ -62,6 +63,9 @@ REMOVE_IN_PYSIDE = [
     "metaobjectdump", "include", "typesystems", "scripts", "Qt/qml", "Qt/metatypes",
     "Qt/libexec",
 ]
+
+# Oldest glibc the AppImage supports. PySide6 6.11 wheels are manylinux_2_34.
+GLIBC_FLOOR = (2, 34)
 
 # Libraries every kept Python module and platform plugin must still resolve
 MUST_RESOLVE = ["QtCore.abi3.so", "QtGui.abi3.so", "QtWidgets.abi3.so", "QtDBus.abi3.so",
@@ -92,6 +96,12 @@ def missing_qt_deps(path, lib_dir):
                                          line.split("`")[1].split("'")[0] if "`" in line else "version"))
     return sorted(m for m in missing
                   if any(k in m for k in ("libQt6", "libicu", "libpyside", "libshiboken")))
+
+
+def max_glibc(path):
+    res = subprocess.run(["objdump", "-T", path], capture_output=True, text=True)
+    versions = re.findall(r"GLIBC_([0-9]+)\.([0-9]+)", res.stdout)
+    return max(((int(a), int(b)) for a, b in versions), default=(0, 0))
 
 
 def main(appdir):
@@ -149,6 +159,14 @@ def main(appdir):
         missing = missing_qt_deps(path, lib_dir)
         if missing:
             print("[Error]: {} is missing {}".format(rel, ", ".join(missing)))
+            ok = False
+    for path in glob.glob(os.path.join(qt, "**", "*.so*"), recursive=True):
+        if os.path.islink(path):
+            continue
+        need = max_glibc(path)
+        if need > GLIBC_FLOOR:
+            print("[Error]: {} needs glibc {}.{} (floor is {}.{})".format(
+                os.path.relpath(path, qt), *need, *GLIBC_FLOOR))
             ok = False
     return 0 if ok else 1
 

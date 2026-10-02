@@ -54,7 +54,7 @@ Mount arguments are split like a shell command line, so quoting works (e.g. `--e
 
 ## AppImage
 
-The AppImage bundles Python, PySide6 and rclone, so the only host requirement is FUSE 3 (`fusermount3`, usually the `fuse3` package). rclone remotes still come from your normal rclone config (`rclone config`). Use "Start on login" in the tray menu to add an autostart entry pointing at the AppImage.
+The AppImage bundles Python, PySide6 and rclone. Host requirements: glibc 2.34 or newer (Ubuntu 22.04+, Debian 12+, Fedora 35+, RHEL 9+) and FUSE 3 (`fusermount3`, usually the `fuse3` package), which both the AppImage itself and `rclone mount` need. rclone remotes still come from your normal rclone config (`rclone config`). Use "Start on login" in the tray menu to add an autostart entry pointing at the AppImage.
 
 Build locally (needs `python-appimage` and PySide6 for `compile.py`):
 

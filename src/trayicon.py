@@ -16,7 +16,7 @@ from PySide6.QtGui import QIcon, QCursor, QAction
 from PySide6.QtCore import QStandardPaths, QTimer
 
 from configwindow import ConfigWindow
-from common import APP_TITLE, warn, ask, host_env, find_tool, find_rclone
+from common import APP_TITLE, warn, ask, host_env, find_tool, find_rclone, find_inhibit
 
 
 # How long to wait for a new mount to appear before assuming rclone is still starting
@@ -302,7 +302,7 @@ class TrayIcon(QSystemTrayIcon):
             return
 
         args = []
-        inhibit = find_tool("systemd-inhibit")
+        inhibit = find_inhibit()
         if inhibit is not None:
             # Mounted remotes cause some systems to lockup on sleep
             args.append(inhibit)

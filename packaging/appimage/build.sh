@@ -30,7 +30,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 # Create an AppImage with its own Python, PySide6 and rclone.
-# Requires: python3 with PySide6 (for compile.py), python-appimage, curl, unzip, sha256sum, ldd
+# Requires: python3 with PySide6 (for compile.py), python-appimage, curl, unzip, sha256sum, ldd, ar
 # Output: dist/RcloneDriveManager-<version>-x86_64.AppImage
 
 set -euo pipefail
@@ -79,6 +79,28 @@ echo "Building AppDir..."
 "$PYTHON_APPIMAGE" build app --no-packaging -p "$PY_VERSION" -l "$LINUX_TAG" "$RECIPE" \
     -x "$EXTRA/opt" "$EXTRA/usr"
 APPDIR="$BUILD/RcloneDriveManager-x86_64"
+
+echo "Bundling xcb libraries..."
+QT_LIB=$(echo "$APPDIR"/opt/python*/lib/python*/site-packages/PySide6/Qt/lib)
+mkdir -p xcb-debs xcb-root "$APPDIR/usr/share/doc/xcb-libs"
+grep -v '^#' "$DIR/xcb-libs.txt" | while read -r sha path; do
+    deb="xcb-debs/$(basename "$path")"
+    curl -fsSL -o "$deb" "http://archive.ubuntu.com/ubuntu/$path" ||
+        curl -fsSL -o "$deb" "https://launchpad.net/ubuntu/+archive/primary/+files/$(basename "$path")"
+    echo "$sha  $deb" | sha256sum -c -
+    rm -rf deb-tmp && mkdir deb-tmp
+    (cd deb-tmp && ar x "../$deb" && tar -xf data.tar.* -C ../xcb-root)
+done
+rm -rf deb-tmp
+for lib in xcb-root/usr/lib/x86_64-linux-gnu/*.so.*; do
+    # Copy each soname (symlink) as a real file
+    if [ -L "$lib" ]; then
+        cp -L "$lib" "$QT_LIB/"
+    fi
+done
+for doc in xcb-root/usr/share/doc/*/copyright; do
+    cp "$doc" "$APPDIR/usr/share/doc/xcb-libs/$(basename "$(dirname "$doc")").copyright"
+done
 
 echo "Removing unused Qt components..."
 "$PYTHON" "$DIR/prune.py" "$APPDIR"
