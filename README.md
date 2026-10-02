@@ -66,6 +66,12 @@ python -m pip install python-appimage PySide6-Essentials
 
 The bundled rclone version is pinned in `packaging/appimage/rclone-version.txt`.
 
+### Updates
+
+Release AppImages embed update information (`gh-releases-zsync`) and each release publishes a matching `.zsync` file, so AppImage managers can update them in place. [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever) is recommended: add the AppImage to Gear Lever and it picks up the GitHub release source automatically. AppImageUpdate / `appimageupdatetool` also work and only download changed blocks.
+
+Local builds point at `rmonk/RcloneDriveManager` releases unless `UPDATE_REPO=owner/repo` is set (CI uses the repository it runs in).
+
 ### Releases
 
 - Pushing a `vX.Y.Z` tag that matches `res/version.txt` builds the AppImage and publishes a GitHub release (`.github/workflows/build-appimage.yml`).

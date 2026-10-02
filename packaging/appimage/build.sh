@@ -31,7 +31,7 @@
 
 # Create an AppImage with its own Python, PySide6 and rclone.
 # Requires: python3 with PySide6 (for compile.py), python-appimage, curl, unzip, sha256sum, ldd, ar
-# Output: dist/RcloneDriveManager-<version>-x86_64.AppImage
+# Output: dist/RcloneDriveManager-<version>-x86_64.AppImage (+ .zsync for updates)
 
 set -euo pipefail
 
@@ -42,6 +42,8 @@ PYTHON=${PYTHON:-python3}
 PYTHON_APPIMAGE=${PYTHON_APPIMAGE:-python-appimage}
 PY_VERSION=${PY_VERSION:-3.13}
 LINUX_TAG=${LINUX_TAG:-manylinux_2_28_x86_64}
+# GitHub repo (owner/name) whose releases the AppImage updates from
+UPDATE_REPO=${UPDATE_REPO:-${GITHUB_REPOSITORY:-rmonk/RcloneDriveManager}}
 
 VERSION=$(tr -d '[:space:]' < "$ROOT/res/version.txt")
 RCLONE_VERSION=$(tr -d '[:space:]' < "$DIR/rclone-version.txt")
@@ -111,7 +113,19 @@ curl -fsSL -o appimagetool \
 chmod +x appimagetool
 mkdir -p "$ROOT/dist"
 OUT="$ROOT/dist/RcloneDriveManager-$VERSION-x86_64.AppImage"
-ARCH=x86_64 ./appimagetool --appimage-extract-and-run --no-appstream "$APPDIR" "$OUT"
+# Embedded update info lets AppImage updaters (e.g. Gear Lever) find new releases
+UPDATE_INFO="gh-releases-zsync|${UPDATE_REPO%%/*}|${UPDATE_REPO#*/}|latest|RcloneDriveManager-*-x86_64.AppImage.zsync"
+ARCH=x86_64 ./appimagetool --appimage-extract-and-run --no-appstream \
+    -u "$UPDATE_INFO" "$APPDIR" "$OUT"
+# appimagetool writes the .zsync to the working directory
+if [ -f "$(basename "$OUT").zsync" ]; then
+    mv "$(basename "$OUT").zsync" "$OUT.zsync"
+fi
+if [ ! -f "$OUT.zsync" ]; then
+    echo "appimagetool did not create $OUT.zsync"
+    exit 1
+fi
 popd > /dev/null
 
 echo "Created $OUT"
+echo "Update info: $UPDATE_INFO"

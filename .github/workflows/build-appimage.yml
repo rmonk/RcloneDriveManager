@@ -56,12 +56,17 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: RcloneDriveManager-AppImage
-          path: dist/*.AppImage
+          path: |
+            dist/*.AppImage
+            dist/*.AppImage.zsync
 
       - name: Release
         if: env.RELEASE == 'true'
         uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ env.TAG }}
-          files: dist/*.AppImage
+          files: |
+            dist/*.AppImage
+            dist/*.AppImage.zsync
+          fail_on_unmatched_files: true
           generate_release_notes: true
