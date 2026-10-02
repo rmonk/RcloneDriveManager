@@ -1,0 +1,67 @@
+name: Build AppImage
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to build"
+        type: string
+        required: false
+  workflow_call:
+    inputs:
+      ref:
+        description: "Branch or tag to build"
+        type: string
+        required: true
+      release:
+        description: "Publish a GitHub release for the tag in ref"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      RELEASE: ${{ github.event_name == 'push' || inputs.release == true }}
+      TAG: ${{ inputs.ref || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Install build tools
+        run: python -m pip install python-appimage "PySide6-Essentials==6.11.*"
+
+      - name: Check tag matches version
+        if: env.RELEASE == 'true'
+        run: |
+          version="v$(tr -d '[:space:]' < res/version.txt)"
+          if [ "$version" != "$TAG" ]; then
+            echo "Tag $TAG does not match res/version.txt ($version)"
+            exit 1
+          fi
+
+      - name: Build
+        run: ./packaging/appimage/build.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: RcloneDriveManager-AppImage
+          path: dist/*.AppImage
+
+      - name: Release
+        if: env.RELEASE == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ env.TAG }}
+          files: dist/*.AppImage
+          generate_release_notes: true

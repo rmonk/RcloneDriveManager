@@ -1,0 +1,65 @@
+name: Update bundled rclone
+
+# Checks for a new rclone release. When one is found, pins it, bumps the app's
+# patch version, tags the commit and builds / releases a new AppImage.
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: rclone-update
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.bump.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Bump rclone and app version
+        id: bump
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          latest=$(gh api repos/rclone/rclone/releases/latest -q .tag_name)
+          current=$(tr -d '[:space:]' < packaging/appimage/rclone-version.txt)
+          echo "Bundled rclone: $current, latest: $latest"
+          newest=$(printf '%s\n%s\n' "$current" "$latest" | sort -V | tail -n 1)
+          if [ "$latest" = "$current" ] || [ "$newest" != "$latest" ]; then
+            echo "Bundled rclone is up to date."
+            exit 0
+          fi
+
+          # Make sure the release has been published to downloads.rclone.org
+          curl -fsIL -o /dev/null "https://downloads.rclone.org/$latest/rclone-$latest-linux-amd64.zip"
+
+          version=$(tr -d '[:space:]' < res/version.txt)
+          IFS=. read -r major minor patch <<< "$version"
+          new="$major.$minor.$((patch + 1))"
+
+          echo "$latest" > packaging/appimage/rclone-version.txt
+          ./change_version.sh "$new"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Bump bundled rclone to $latest (app v$new)"
+          git tag "v$new"
+          git push origin "HEAD:${GITHUB_REF_NAME}" "v$new"
+          echo "tag=v$new" >> "$GITHUB_OUTPUT"
+
+  # Tags pushed with GITHUB_TOKEN don't trigger other workflows, so build here
+  build:
+    needs: check
+    if: needs.check.outputs.tag != ''
+    uses: ./.github/workflows/build-appimage.yml
+    with:
+      ref: ${{ needs.check.outputs.tag }}
+      release: true
+    permissions:
+      contents: write

@@ -1,5 +1,5 @@
 Name:       rclone-drive-manager
-Version:    1.0.5
+Version:    1.1.0
 Release:    1
 Summary:    Tray icon to mount / unmount rclone remotes.
 License:    BSD-3-Clause
