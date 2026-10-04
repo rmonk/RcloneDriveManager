@@ -38,7 +38,8 @@ from PySide6.QtGui import QCloseEvent
 from typing import List, Optional
 from ui_configwindow import Ui_ConfigWindow
 from ui_config_list_item import Ui_ConfigListItem
-from common import APP_TITLE, warn, app_version, rclone_version, list_remotes, save_config, config_path
+from common import APP_TITLE, warn, app_version, rclone_version, list_remotes, save_config, config_path, \
+    retry_settings
 import presets
 import os
 
@@ -70,6 +71,13 @@ class ConfigListItem(QWidget):
         self.ui.cmb_preset.currentIndexChanged.connect(self.preset_changed)
         self.ui.txt_args.textChanged.connect(self.args_edited)
         self.set_preset(presets.DEFAULT)
+
+        self.ui.chk_mount_on_startup.toggled.connect(self.recovery_toggled)
+        self.ui.chk_auto_remount.toggled.connect(self.recovery_toggled)
+        self.ui.spin_retries.valueChanged.connect(self.retries_changed)
+        self.ui.chk_auto_remount.setChecked(True)
+        self.set_retries(*retry_settings({}))
+        self.recovery_toggled()
 
     def __remove(self):
         self.removed.emit(self)
@@ -124,6 +132,22 @@ class ConfigListItem(QWidget):
             self.ui.txt_args.setPlainText(preset.args)
             self.ui.lbl_preset_desc.setText(preset.description)
 
+    def recovery_toggled(self):
+        # Retries apply to startup mounts and remounts
+        checked = self.ui.chk_mount_on_startup.isChecked() or self.ui.chk_auto_remount.isChecked()
+        for widget in (self.ui.lbl_retries, self.ui.spin_retries, self.ui.lbl_notify,
+                       self.ui.spin_notify, self.ui.lbl_failures):
+            widget.setEnabled(checked)
+
+    def retries_changed(self, retries: int):
+        # Can't notify after more failures than there are attempts
+        self.ui.spin_notify.setMaximum(retries + 1)
+
+    def set_retries(self, retries: int, notify_after: int):
+        self.ui.spin_retries.setValue(retries)
+        self.retries_changed(retries)
+        self.ui.spin_notify.setValue(notify_after)
+
     def args_edited(self):
         if self.current_preset() == presets.CUSTOM:
             self.custom_args = self.ui.txt_args.toPlainText()
@@ -131,6 +155,11 @@ class ConfigListItem(QWidget):
     def set_values(self, item: dict):
         self.ui.cmb_remote.setCurrentText(item.get("remote_name", ""))
         self.ui.txt_mountpoint.setText(item.get("mount_point", ""))
+        self.ui.chk_mount_on_startup.setChecked(item.get("mount_on_startup", False) is True)
+        self.ui.chk_auto_remount.setChecked(item.get("auto_remount", True) is True)
+        self.ui.chk_bookmark.setChecked(item.get("bookmark", False) is True)
+        self.set_retries(*retry_settings(item))
+        self.ui.chk_inhibit_sleep.setChecked(item.get("inhibit_sleep", False) is True)
         args = item.get("mount_args", "")
         preset_id = item.get("mount_preset")
         if preset_id is None:
@@ -149,6 +178,12 @@ class ConfigListItem(QWidget):
         item["mount_point"] = self.ui.txt_mountpoint.text().strip()
         item["mount_preset"] = self.current_preset()
         item["mount_args"] = self.ui.txt_args.toPlainText()
+        item["mount_on_startup"] = self.ui.chk_mount_on_startup.isChecked()
+        item["auto_remount"] = self.ui.chk_auto_remount.isChecked()
+        item["retries"] = self.ui.spin_retries.value()
+        item["notify_after_failures"] = self.ui.spin_notify.value()
+        item["inhibit_sleep"] = self.ui.chk_inhibit_sleep.isChecked()
+        item["bookmark"] = self.ui.chk_bookmark.isChecked()
         if self.custom_args is not None:
             item["custom_args"] = self.custom_args
         return item

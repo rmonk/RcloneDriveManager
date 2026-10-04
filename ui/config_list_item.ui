@@ -134,7 +134,108 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0" colspan="3">
+      <item row="5" column="1" colspan="2">
+       <widget class="QCheckBox" name="chk_mount_on_startup">
+        <property name="text">
+         <string>Mount on startup</string>
+        </property>
+        <property name="toolTip">
+         <string>Mount this remote when RcloneDriveManager starts. Combine with "Start on login" in the tray menu to mount it at login.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1" colspan="2">
+       <widget class="QCheckBox" name="chk_auto_remount">
+        <property name="text">
+         <string>Remount if it drops</string>
+        </property>
+        <property name="toolTip">
+         <string>If rclone exits unexpectedly, mount the remote again</string>
+        </property>
+       </widget>
+      </item>
+      <item row="7" column="1" colspan="2">
+       <layout class="QHBoxLayout" name="lay_retries">
+        <property name="leftMargin">
+         <number>24</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="lbl_retries">
+          <property name="text">
+           <string>If mounting fails, retry</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spin_retries">
+          <property name="maximum">
+           <number>100</number>
+          </property>
+          <property name="toolTip">
+           <string>How many more times to try if mounting on startup or remounting fails. Attempts that fail while the network is down don't count.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lbl_notify">
+          <property name="text">
+           <string>times, notify after</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spin_notify">
+          <property name="minimum">
+           <number>1</number>
+          </property>
+          <property name="toolTip">
+           <string>Show a notification once this many attempts have failed. Earlier failures are only logged.</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="lbl_failures">
+          <property name="text">
+           <string>failed attempts</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="spacer_retries">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item row="8" column="1" colspan="2">
+       <widget class="QCheckBox" name="chk_inhibit_sleep">
+        <property name="text">
+         <string>Prevent sleep and shutdown while mounted</string>
+        </property>
+        <property name="toolTip">
+         <string>Hold a systemd-inhibit lock while this remote is mounted. Enable if your system locks up when suspending with the remote mounted.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="9" column="1" colspan="2">
+       <widget class="QCheckBox" name="chk_bookmark">
+        <property name="text">
+         <string>Show in file manager sidebar</string>
+        </property>
+        <property name="toolTip">
+         <string>Add the mount point to the sidebar of GNOME Files and other GTK file managers while it is mounted</string>
+        </property>
+       </widget>
+      </item>
+      <item row="10" column="0" colspan="3">
        <widget class="QPushButton" name="btn_remove">
         <property name="text">
          <string>Remove</string>

@@ -41,7 +41,7 @@ cd packaging
 
 `compile.py` uses `pyside6-uic` / `pyside6-rcc` when installed by pip, and falls back to the `uic` / `rcc` tools shipped inside the PySide6 package (e.g. Fedora's `python3-pyside6`).
 
-The host needs `rclone` and `fuse3` (`fusermount3`) installed. rclone output for each mount is logged to `~/.local/share/rclone-drive-manager/logs/<remote>.log`.
+The host needs `rclone` and `fuse3` (`fusermount3`) installed. rclone output for each mount is logged to `~/.local/share/rclone-drive-manager/logs/<remote>.log`, with the previous run kept as `<remote>.log.1`.
 
 ## GUI Config file example
 
@@ -57,13 +57,44 @@ The host needs `rclone` and `fuse3` (`fusermount3`) installed. rclone output for
             "remote_name": "OneDrive",
             "mount_point": "~/OneDrive",
             "mount_preset": "general",
-            "mount_args": "--vfs-cache-mode full\n--vfs-cache-max-size 10G\n--vfs-cache-max-age 24h\n--vfs-cache-min-free-space 5G"
+            "mount_args": "--vfs-cache-mode full\n--vfs-cache-max-size 10G\n--vfs-cache-max-age 24h\n--vfs-cache-min-free-space 5G",
+            "mount_on_startup": false,
+            "auto_remount": true,
+            "retries": 5,
+            "notify_after_failures": 3,
+            "inhibit_sleep": false,
+            "bookmark": false
         }
     }
 }
 ```
 
 The remote can be picked from the remotes in your rclone config (`rclone listremotes`) or typed in.
+
+### Tray menu
+
+Each remote has a submenu showing its status (mounted, uploading, retrying, waiting for the network, or why it couldn't mount), with Mount / Unmount, Open folder and View log. "Mount all" and "Unmount all" act on every remote, and hovering over the tray icon shows how many are mounted plus anything that needs attention.
+
+### Per-mount options
+
+| Option (GUI) | Config key | Default | What it does |
+|---|---|---|---|
+| Mount on startup | `mount_on_startup` | off | Mount when the app starts. Together with "Start on login" in the tray menu, this mounts it at login. |
+| Remount if it drops | `auto_remount` | on | If rclone exits unexpectedly, mount the remote again. When off, a dialog reports the drop instead. |
+| If mounting fails, retry N times, notify after M failed attempts | `retries`, `notify_after_failures` | 5, 3 | See below. |
+| Prevent sleep and shutdown while mounted | `inhibit_sleep` | off | Hold a `systemd-inhibit` lock on sleep and shutdown while mounted. Turn it on if your system locks up when suspending with the remote mounted. |
+| Show in file manager sidebar | `bookmark` | off | Add the mount point to the GTK bookmarks (`~/.config/gtk-3.0/bookmarks`) while mounted, which GNOME Files and GTK file choosers show in their sidebar. KDE's Dolphin isn't covered. Only bookmarks the app added are ever removed. |
+
+**Retries.** A startup mount that fails, or a mount that drops, is tried again up to `retries` more times, 30 seconds apart.
+- Failures are only logged until `notify_after_failures` attempts have failed. Then a desktop notification is shown, and another if it gives up. If it recovers after a notification, you're told so.
+- If rclone exits within 30 seconds of a retried mount, that counts as a failed attempt.
+- On systems using NetworkManager, attempts that fail while the network is down don't count: the mount waits and is retried as soon as the network is back.
+- Problems another attempt can't fix (such as a non-empty mount point or rclone not being installed) are notified right away without retrying.
+- Mounting or unmounting the remote from the tray menu stops any pending retries.
+
+**Pending uploads.** The app starts each mount with rclone's remote control on a private socket in `$XDG_RUNTIME_DIR/rclone-drive-manager/`, so it can see files still waiting to upload from the VFS cache. (If your mount arguments include their own `--rc` options, this is skipped.)
+- Pending uploads are shown in the tray menu.
+- Unmounting or quitting while files are uploading asks whether to wait for them. Uploads you don't wait for stay in the local cache and resume the next time the drive is mounted.
 
 ### Mount option presets
 
